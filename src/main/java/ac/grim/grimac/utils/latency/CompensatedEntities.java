@@ -94,7 +94,12 @@ public class CompensatedEntities {
     }
 
     public double getPlayerMovementSpeed() {
-        return calculateAttribute(player.compensatedEntities.getSelf().playerSpeed, 0.0, 1024.0);
+        double speedAttribute = calculateAttribute(player.compensatedEntities.getSelf().playerSpeed, 0.0, 1024.0);
+        // Fixes precision loss with plugins setting the attribute as a double rather than float
+        if ((float) speedAttribute == speedAttribute) {
+            speedAttribute = (float) speedAttribute;
+        }
+        return speedAttribute;
     }
 
     public void updateAttributes(int entityID, List<WrapperPlayServerUpdateAttributes.Property> objects) {
