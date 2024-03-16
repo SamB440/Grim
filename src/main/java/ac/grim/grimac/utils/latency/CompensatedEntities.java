@@ -202,6 +202,8 @@ public class CompensatedEntities {
                 packetEntity = new PacketEntityTrackXRot(player, entityType, position.getX(), position.getY(), position.getZ(), xRot);
             } else if (EntityTypes.FISHING_BOBBER.equals(entityType)) {
                 packetEntity = new PacketEntityHook(player, entityType, position.getX(), position.getY(), position.getZ(), data);
+            } else if (EntityTypes.INTERACTION.equals(entityType)) {
+                packetEntity = new PacketEntityInteraction(player, position.getX(), position.getY(), position.getZ());
             } else {
                 packetEntity = new PacketEntity(player, entityType, position.getX(), position.getY(), position.getZ());
             }
@@ -412,6 +414,19 @@ public class CompensatedEntities {
                     ((PacketEntityHorse) entity).hasSaddle = (info & 0x08) != 0;
                     ((PacketEntityHorse) entity).isRearing = (info & 0x40) != 0;
                 }
+            }
+        }
+
+        if (entity instanceof PacketEntityInteraction) {
+            PacketEntityInteraction interaction = (PacketEntityInteraction) entity;
+            final EntityData width = WatchableIndexUtil.getIndex(watchableObjects, 8);
+            if (width != null) {
+                interaction.width = (float) width.getValue();
+            }
+
+            final EntityData height = WatchableIndexUtil.getIndex(watchableObjects, 9);
+            if (height != null) {
+                interaction.height = (float) height.getValue();
             }
         }
 

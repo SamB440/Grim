@@ -4,6 +4,7 @@ import ac.grim.grimac.player.GrimPlayer;
 import ac.grim.grimac.utils.collisions.datatypes.SimpleCollisionBox;
 import ac.grim.grimac.utils.data.packetentity.PacketEntity;
 import ac.grim.grimac.utils.data.packetentity.PacketEntityHorse;
+import ac.grim.grimac.utils.data.packetentity.PacketEntityInteraction;
 import ac.grim.grimac.utils.data.packetentity.PacketEntitySizeable;
 import ac.grim.grimac.utils.data.packetentity.PacketEntityTrackXRot;
 import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;
@@ -109,6 +110,10 @@ public class BoundingBoxSize {
             return 1.9f;
         } else if (EntityTypes.CAMEL.equals(packetEntity.type)) {
             return 1.7f;
+        } else if (EntityTypes.INTERACTION.equals(packetEntity.type)) {
+            if (packetEntity instanceof PacketEntityInteraction) {
+                return ((PacketEntityInteraction) packetEntity).width;
+            }
         }
         return 0.6f;
     }
@@ -358,6 +363,10 @@ public class BoundingBoxSize {
             return 1.75f;
         } else if (EntityTypes.CAMEL.equals(packetEntity.type)) {
             return 2.375f;
+        } else if (EntityTypes.INTERACTION.equals(packetEntity.type)) {
+            if (packetEntity instanceof PacketEntityInteraction) {
+                return ((PacketEntityInteraction) packetEntity).height;
+            }
         }
         return 1.95f;
     }
