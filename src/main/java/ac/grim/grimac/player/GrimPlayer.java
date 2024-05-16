@@ -121,6 +121,7 @@ public class GrimPlayer implements GrimUser {
     public boolean wasSneaking;
     public boolean isSprinting;
     public boolean lastSprinting;
+    public String teamName;
     // The client updates sprinting attribute at end of each tick
     // Don't false if the server update's the player's sprinting status
     public boolean lastSprintingForSpeed;
@@ -349,7 +350,7 @@ public class GrimPlayer implements GrimUser {
         final PacketEntity riding = self.getRiding();
         if (riding == null) return self.stepHeight;
 
-        if (EntityTypes.isTypeInstanceOf(riding.type, EntityTypes.BOAT)) {
+        if (EntityTypes.isTypeInstanceOf(riding.getType(), EntityTypes.BOAT)) {
             return 0f;
         }
 
@@ -656,6 +657,11 @@ public class GrimPlayer implements GrimUser {
         // This check was added in 1.11
         // 1.11+ players must be in creative and have a permission level at or above 2
         return getClientVersion().isOlderThanOrEquals(ClientVersion.V_1_10) || (gamemode == GameMode.CREATIVE && compensatedEntities.getSelf().getOpLevel() >= 2);
+    }
+
+    public boolean supportsBundles() {
+        // Bundles were added in 1.19.4. Being behind ViaVersion means we can only use this packet on 1.19.4+ servers.
+        return getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_19_4) && PacketEvents.getAPI().getServerManager().getVersion().isNewerThanOrEquals(ServerVersion.V_1_19_4);
     }
 
     @Override

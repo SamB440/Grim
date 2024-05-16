@@ -105,4 +105,14 @@ public class GrimMath {
     public static boolean isNearlySame(double a, double b, double epoch) {
         return Math.abs(a-b) < epoch;
     }
+
+    public static double absMax(double a, double b) {
+        if (a < 0.0) {
+            a = -a;
+        }
+        if (b < 0.0) {
+            b = -b;
+        }
+        return Math.max(a, b);
+    }
 }

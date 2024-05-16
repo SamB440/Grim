@@ -10,6 +10,8 @@ import ac.grim.grimac.utils.data.packetentity.PacketEntity;
 import ac.grim.grimac.utils.data.packetentity.PacketEntityStrider;
 import ac.grim.grimac.utils.math.GrimMath;
 import ac.grim.grimac.utils.nmsutil.*;
+import ac.grim.grimac.utils.team.EntityPredicates;
+import ac.grim.grimac.utils.team.TeamHandler;
 import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;
 import com.github.retrooper.packetevents.protocol.player.ClientVersion;
 import com.github.retrooper.packetevents.protocol.world.states.defaulttags.BlockTags;
@@ -17,6 +19,9 @@ import com.github.retrooper.packetevents.protocol.world.states.type.StateType;
 import com.github.retrooper.packetevents.protocol.world.states.type.StateTypes;
 import com.github.retrooper.packetevents.util.Vector3d;
 import org.bukkit.util.Vector;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class MovementTicker {
     public final GrimPlayer player;
@@ -29,7 +34,9 @@ public class MovementTicker {
         // 1.7 and 1.8 do not have player collision
         if (player.getClientVersion().isOlderThan(ClientVersion.V_1_9)) return;
 
-        int possibleCollidingEntities = 0;
+        List<PacketEntity> collidingWith = new ArrayList<>();
+
+        player.uncertaintyHandler.collidingEntitiesWithTransactionSplit = 0;
 
         // Players in vehicles do not have collisions
         if (!player.compensatedEntities.getSelf().inVehicle()) {
@@ -37,28 +44,39 @@ public class MovementTicker {
             SimpleCollisionBox playerBox = GetBoundingBox.getBoundingBoxFromPosAndSize(player, player.lastX, player.lastY, player.lastZ, 0.6f, 1.8f);
             SimpleCollisionBox expandedPlayerBox = playerBox.copy().expandToAbsoluteCoordinates(player.x, player.y, player.z).expand(1);
 
+            final TeamHandler teamHandler = player.checkManager.getPacketCheck(TeamHandler.class);
+
             for (PacketEntity entity : player.compensatedEntities.entityMap.values()) {
                 // Players can only push living entities
                 // Players can also push boats or minecarts
                 // The one exemption to a living entity is an armor stand
-                if (!entity.isLivingEntity() && !EntityTypes.isTypeInstanceOf(entity.type, EntityTypes.BOAT) && !entity.isMinecart() || entity.type == EntityTypes.ARMOR_STAND)
+                if (!entity.isLivingEntity() && !EntityTypes.isTypeInstanceOf(entity.getType(), EntityTypes.BOAT) && !entity.isMinecart() || entity.getType() == EntityTypes.ARMOR_STAND)
                     continue;
+
+                if (!EntityPredicates.canBePushedBy(player, entity, teamHandler).test(player)) continue;
 
                 SimpleCollisionBox entityBox = entity.getPossibleCollisionBoxes();
 
-                if (expandedPlayerBox.isCollided(entityBox))
-                    possibleCollidingEntities++;
+                if (expandedPlayerBox.isCollided(entityBox)) {
+                    collidingWith.add(entity);
+
+                    // Transaction split?
+                    if (entity.getOldPacketLocation() != null) {
+                        player.uncertaintyHandler.collidingEntitiesWithTransactionSplit++;
+                    }
+                }
             }
         }
 
-        if (player.isGliding && possibleCollidingEntities > 0) {
+        if (player.isGliding && !collidingWith.isEmpty()) {
             // Horizontal starting movement affects vertical movement with elytra, hack around this.
             // This can likely be reduced but whatever, I don't see this as too much of a problem
             player.uncertaintyHandler.yNegativeUncertainty -= 0.05;
             player.uncertaintyHandler.yPositiveUncertainty += 0.05;
         }
 
-        player.uncertaintyHandler.collidingEntities.add(possibleCollidingEntities);
+        player.uncertaintyHandler.collidingEntities.add(collidingWith.size());
+        player.uncertaintyHandler.collidingWithEntities = collidingWith;
     }
 
     public void move(Vector inputVel, Vector collide) {
@@ -107,7 +125,7 @@ public class MovementTicker {
         player.boundingBox = GetBoundingBox.getCollisionBoxForPlayer(player, player.x, player.y, player.z);
         // This is how the player checks for fall damage
         // By running fluid pushing for the player
-        if (!player.wasTouchingWater && (player.compensatedEntities.getSelf().getRiding() == null || !EntityTypes.isTypeInstanceOf(player.compensatedEntities.getSelf().getRiding().type, EntityTypes.BOAT))) {
+        if (!player.wasTouchingWater && (player.compensatedEntities.getSelf().getRiding() == null || !EntityTypes.isTypeInstanceOf(player.compensatedEntities.getSelf().getRiding().getType(), EntityTypes.BOAT))) {
             new PlayerBaseTick(player).updateInWaterStateAndDoWaterCurrentPushing();
         }
 
@@ -330,7 +348,7 @@ public class MovementTicker {
         if (player.wasTouchingWater && !player.isFlying) {
             // 0.8F seems hardcoded in
             // 1.13+ players on skeleton horses swim faster! Cool feature.
-            boolean isSkeletonHorse = player.compensatedEntities.getSelf().getRiding() != null && player.compensatedEntities.getSelf().getRiding().type == EntityTypes.SKELETON_HORSE && player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_13);
+            boolean isSkeletonHorse = player.compensatedEntities.getSelf().getRiding() != null && player.compensatedEntities.getSelf().getRiding().getType() == EntityTypes.SKELETON_HORSE && player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_13);
             swimFriction = player.isSprinting && player.getClientVersion().isNewerThanOrEquals(ClientVersion.V_1_13) ? 0.9F : (isSkeletonHorse ? 0.96F : 0.8F);
             float swimSpeed = 0.02F;
 

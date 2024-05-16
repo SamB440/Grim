@@ -65,6 +65,10 @@ public class UncertaintyHandler {
     public boolean wasZeroPointThreeVertically = false;
     // How many entities are within 0.5 blocks of the player's bounding box?
     public EvictingQueue<Integer> collidingEntities = new EvictingQueue<>(3);
+    // Entities being collided with as above
+    public List<PacketEntity> collidingWithEntities = new ArrayList<>();
+    // How many entities we are colliding with had a transaction split, to determine uncertainty scale.
+    public int collidingEntitiesWithTransactionSplit = 0;
     // Fishing rod pulling is another method of adding to a player's velocity
     public List<Integer> fishingRodPulls = new ArrayList<>();
     public SimpleCollisionBox fireworksBox = null;
@@ -324,7 +328,7 @@ public class UncertaintyHandler {
 
     private boolean regularHardCollision(SimpleCollisionBox expandedBB) {
         for (PacketEntity entity : player.compensatedEntities.entityMap.values()) {
-            if ((EntityTypes.isTypeInstanceOf(entity.type, EntityTypes.BOAT) || entity.type == EntityTypes.SHULKER) && entity != player.compensatedEntities.getSelf().getRiding() &&
+            if ((EntityTypes.isTypeInstanceOf(entity.getType(), EntityTypes.BOAT) || entity.getType() == EntityTypes.SHULKER) && entity != player.compensatedEntities.getSelf().getRiding() &&
                     entity.getPossibleCollisionBoxes().isIntersected(expandedBB)) {
                 return true;
             }
@@ -338,7 +342,7 @@ public class UncertaintyHandler {
         if (player.compensatedEntities.getSelf().getRiding() instanceof PacketEntityStrider) {
             for (Map.Entry<Integer, PacketEntity> entityPair : player.compensatedEntities.entityMap.int2ObjectEntrySet()) {
                 PacketEntity entity = entityPair.getValue();
-                if (entity.type == EntityTypes.STRIDER && entity != player.compensatedEntities.getSelf().getRiding() && !entity.hasPassenger(entityPair.getValue())
+                if (entity.getType() == EntityTypes.STRIDER && entity != player.compensatedEntities.getSelf().getRiding() && !entity.hasPassenger(entityPair.getValue())
                         && entity.getPossibleCollisionBoxes().isIntersected(expandedBB)) {
                     return true;
                 }
@@ -350,7 +354,7 @@ public class UncertaintyHandler {
 
     private boolean boatCollision(SimpleCollisionBox expandedBB) {
         // Boats can collide with quite literally anything
-        if (player.compensatedEntities.getSelf().getRiding() != null && EntityTypes.isTypeInstanceOf(player.compensatedEntities.getSelf().getRiding().type, EntityTypes.BOAT)) {
+        if (player.compensatedEntities.getSelf().getRiding() != null && EntityTypes.isTypeInstanceOf(player.compensatedEntities.getSelf().getRiding().getType(), EntityTypes.BOAT)) {
             for (Map.Entry<Integer, PacketEntity> entityPair : player.compensatedEntities.entityMap.int2ObjectEntrySet()) {
                 PacketEntity entity = entityPair.getValue();
                 if (entity != player.compensatedEntities.getSelf().getRiding() && (player.compensatedEntities.getSelf().getRiding() == null || !player.compensatedEntities.getSelf().getRiding().hasPassenger(entityPair.getValue())) &&

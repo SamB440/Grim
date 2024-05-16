@@ -1,12 +1,14 @@
 package ac.grim.grimac.predictionengine.predictions;
 
+import ac.grim.grimac.GrimAPI;
 import ac.grim.grimac.player.GrimPlayer;
 import ac.grim.grimac.predictionengine.SneakingEstimator;
 import ac.grim.grimac.predictionengine.movementtick.MovementTickerPlayer;
+import ac.grim.grimac.utils.collisions.EntityPushing;
 import ac.grim.grimac.utils.collisions.datatypes.SimpleCollisionBox;
 import ac.grim.grimac.utils.data.Pair;
 import ac.grim.grimac.utils.data.VectorData;
-import ac.grim.grimac.utils.math.GrimMath;
+import ac.grim.grimac.utils.data.packetentity.PacketEntity;
 import ac.grim.grimac.utils.math.VectorUtils;
 import ac.grim.grimac.utils.nmsutil.Collisions;
 import ac.grim.grimac.utils.nmsutil.GetBoundingBox;
@@ -14,6 +16,8 @@ import ac.grim.grimac.utils.nmsutil.JumpPower;
 import ac.grim.grimac.utils.nmsutil.Riptide;
 import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;
 import com.github.retrooper.packetevents.protocol.player.ClientVersion;
+import io.github.retrooper.packetevents.util.viaversion.ViaVersionUtil;
+import org.bukkit.Bukkit;
 import org.bukkit.util.Vector;
 
 import java.util.*;
@@ -331,6 +335,7 @@ public class PredictionEngine {
         Set<VectorData> velocities = player.getPossibleVelocities();
         // Packet stuff is done first
         addExplosionToPossibilities(player, velocities);
+        addEntityPushingToPossibilities(player, velocities);
 
         if (player.packetStateData.tryingToRiptide) {
             Vector riptideAddition = Riptide.getRiptideVelocity(player);
@@ -388,6 +393,33 @@ public class PredictionEngine {
 
             if (Math.abs(vector.vector.getZ()) < minimumMovement) {
                 vector.vector.setZ(0D);
+            }
+        }
+    }
+
+    public void addEntityPushingToPossibilities(GrimPlayer player, Set<VectorData> existingVelocities) {
+        if (player.getClientVersion().isOlderThan(ClientVersion.V_1_9) || player.compensatedEntities.getSelf().inVehicle()) return;
+        if (player.uncertaintyHandler.collidingWithEntities.isEmpty()) return;
+
+        // With strict handling, all velocities are required to include entity pushing.
+        // This may have falses with ViaVersion and dynamic entity bounding boxes (e.g camel laying down).
+        // Without, entity pushing is added as a possibility.
+        final boolean strict = GrimAPI.INSTANCE.getConfigManager().getConfig().getBooleanElse("strict-push-handling", !ViaVersionUtil.isAvailable());
+
+        // We will still try to predict 1.9-1.19.3 on the latest transaction
+        // However, if a transaction splits, we will need to go back to giving uncertainty.
+        // This leaves a possible bypass for 1.9-1.19.3 clients. But that is a consequence of allowing such versions on your server.
+        // For 1.19.4+, just use bundle packets to prevent transaction split.
+        for (VectorData vector : new HashSet<>(existingVelocities)) {
+            // Knockback seems to take precedence over entity pushing.
+            if (vector.isKnockback() || vector.isFirstBreadKb()) continue;
+
+            VectorData data = strict ? vector : vector.returnNewModified(vector.vector.clone(), VectorData.VectorType.EntityPushing);
+            if (!strict) existingVelocities.add(data);
+
+            // For each entity we are colliding with, attempt to push away
+            for (PacketEntity collidingWithEntity : player.uncertaintyHandler.collidingWithEntities) {
+                EntityPushing.pushAwayFrom(player, data, collidingWithEntity);
             }
         }
     }
@@ -516,7 +548,21 @@ public class PredictionEngine {
         // 0.075 seems safe?
         //
         // Be somewhat careful as there is an antikb (for horizontal) that relies on this lenience
-        Vector uncertainty = new Vector(avgColliding * 0.08, additionVertical, avgColliding * 0.08);
+
+        // TODO improve uncertainty calculation
+        // With tick skipping, theory is that the entity pos can be desynced within 6 ticks
+        // 0.03: give max uncertainty
+        // Tick skipping (6 ticks): give max 0.08 / ticks since 0.03
+        // Can be falsed by putting yourself down 1 block, stand still for a while and have an entity walk over you, jump up
+        // However I don't see a setback for such edge-cases as an issue, this is currently a good balance IMO.
+        // Transaction splits: give 0.03 uncertainty for every entity with transaction split
+        final boolean entityPositionDesync = !player.isTickingReliablyFor(7);
+        final double positionDesync = entityPositionDesync ? 0.08 / Math.max(1, player.uncertaintyHandler.lastPointThree.getLastInstance()) : 0;
+        final double pushingUncertainty = entityPositionDesync ? positionDesync : vector.isZeroPointZeroThree() ? 0.08 : 0.03;
+        final double determinedPushingUncertainty = entityPositionDesync || vector.isZeroPointZeroThree()
+                ? avgColliding * pushingUncertainty
+                : player.uncertaintyHandler.collidingEntitiesWithTransactionSplit * pushingUncertainty; // = 0 if no splits
+        Vector uncertainty = new Vector(determinedPushingUncertainty, additionVertical, determinedPushingUncertainty);
         Vector min = new Vector(player.uncertaintyHandler.xNegativeUncertainty - additionHorizontal, -bonusY + player.uncertaintyHandler.yNegativeUncertainty, player.uncertaintyHandler.zNegativeUncertainty - additionHorizontal);
         Vector max = new Vector(player.uncertaintyHandler.xPositiveUncertainty + additionHorizontal, bonusY + player.uncertaintyHandler.yPositiveUncertainty, player.uncertaintyHandler.zPositiveUncertainty + additionHorizontal);
 
@@ -736,7 +782,7 @@ public class PredictionEngine {
 
     public boolean canSwimHop(GrimPlayer player) {
         // Boats cannot swim hop, all other living entities should be able to.
-        if (player.compensatedEntities.getSelf().getRiding() != null && EntityTypes.isTypeInstanceOf(player.compensatedEntities.getSelf().getRiding().type, EntityTypes.BOAT))
+        if (player.compensatedEntities.getSelf().getRiding() != null && EntityTypes.isTypeInstanceOf(player.compensatedEntities.getSelf().getRiding().getType(), EntityTypes.BOAT))
             return false;
 
         // Vanilla system ->

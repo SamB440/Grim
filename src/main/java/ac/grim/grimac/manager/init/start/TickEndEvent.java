@@ -28,9 +28,9 @@ public class TickEndEvent implements Initable {
 
     @Override
     public void start() {
-        if (!GrimAPI.INSTANCE.getConfigManager().getConfig().getBooleanElse("Reach.enable-post-packet", false)) {
-            return;
-        }
+//        if (!GrimAPI.INSTANCE.getConfigManager().getConfig().getBooleanElse("Reach.enable-post-packet", false)) {
+//            return;
+//        }
 
         // Inject so we can add the final transaction pre-flush event
         try {
