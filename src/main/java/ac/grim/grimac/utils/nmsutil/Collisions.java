@@ -102,7 +102,7 @@ public class Collisions {
         double bestInput = Double.MAX_VALUE;
         Vector bestOrderResult = null;
 
-        Vector bestTheoreticalCollisionResult = VectorUtils.cutBoxToVector(player.actualMovement, new SimpleCollisionBox(0, Math.min(0, desiredY), 0, desiredX, Math.max(0.6, desiredY), desiredZ).sort());
+        Vector bestTheoreticalCollisionResult = VectorUtils.cutBoxToVector(player.actualMovement, new SimpleCollisionBox(0, Math.min(0, desiredY), 0, desiredX, Math.max(stepUpHeight, desiredY), desiredZ).sort());
         int zeroCount = (desiredX == 0 ? 1 : 0) + (desiredY == 0 ? 1 : 0) + (desiredZ == 0 ? 1 : 0);
 
         for (List<Axis> order : (data != null && data.isZeroPointZeroThree() ? allAxisCombinations : nonStupidityCombinations)) {
